@@ -41,6 +41,16 @@ if (-not (Test-Path $fixed)) {
     throw "Fixed Version runtime not found at $fixed. Run ./scripts/fetch-webview2.ps1 -FixedVersionPath <path> first."
 }
 
+# build/ is git-ignored, so a fresh clone has no appicon.png and wails would
+# generate its own default. See package-installer.ps1.
+Write-Host "Rebuilding the application icon..."
+$previous = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+& go run ./scripts/genicon
+$code = $LASTEXITCODE
+$ErrorActionPreference = $previous
+if ($code -ne 0) { throw "go run ./scripts/genicon failed with exit code $code" }
+
 Write-Host "Building binary..."
 # -skipembedcreate: Wails v2.10.2 runs a static analysis
 # pass to find //go:embed directives, and the x/tools it pins cannot read

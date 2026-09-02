@@ -68,6 +68,6 @@ it works on a machine with no internet.
 
 ---
 
-Version 1.0.0-beta, a first test build.
+Version 1.0.1.
 
 Ali Zaarour · zaarour.a@outlook.com · +96103979874

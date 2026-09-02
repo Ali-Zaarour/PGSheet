@@ -15,7 +15,7 @@ import "strings"
 
 // Version is the release. Change it here and nowhere else, then run
 // `go test ./internal/version/` to find anything left behind.
-const Version = "1.0.0-beta"
+const Version = "1.0.1"
 
 // build is optional provenance stamped at link time, so a binary handed to
 // someone can be traced back to a commit:

@@ -79,7 +79,11 @@ jobs:
         shell: pwsh
         run: |
           $env:PATH = "$env:USERPROFILE\go\bin;${env:ProgramFiles(x86)}\NSIS;$env:PATH"
-          ./scripts/package-installer.ps1 -BuildStamp "${{ github.sha }}".Substring(0,7)
+          # No -BuildStamp: a release reports its release number and nothing
+          # else. Stamping the commit made the application call itself
+          # "1.0.0-beta+4e4e261", which reads like a defect to an operator, and
+          # the release page already records which commit a tag was built from.
+          ./scripts/package-installer.ps1
 
       - name: Name the artifacts after the release
         id: artifacts

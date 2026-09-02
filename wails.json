@@ -11,7 +11,7 @@
   },
   "info": {
     "productName": "PGSheet",
-    "productVersion": "1.0.0-beta",
+    "productVersion": "1.0.1",
     "comments": "Excel to PostgreSQL import tool"
   }
 }

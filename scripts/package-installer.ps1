@@ -38,27 +38,18 @@ $payload   = Join-Path $root 'build\windows\webview2\MicrosoftEdgeWebView2Runtim
 $installer = Join-Path $root 'build\windows\installer'
 $sources   = Join-Path $PSScriptRoot 'installer'
 
-if (-not $BuildStamp) {
-    # A stamp is provenance, not a requirement, so nothing here may stop the
-    # build. Two things make that harder than it reads: a repository with no
-    # commits yet makes rev-parse fail, and Windows PowerShell turns a native
-    # command's stderr into an error record, which $ErrorActionPreference =
-    # 'Stop' then treats as fatal. Hence the exit code, not the output.
-    $previous = $ErrorActionPreference
-    $ErrorActionPreference = 'SilentlyContinue'
-    $stamp = & git -C $root rev-parse --short HEAD 2>&1
-    $ErrorActionPreference = $previous
-
-    if ($LASTEXITCODE -eq 0 -and $stamp) {
-        $BuildStamp = ($stamp | Select-Object -First 1).ToString().Trim()
-    } else {
-        $BuildStamp = ''
-    }
-}
+# A stamp is never added on its own. It used to be derived from the current
+# commit whenever the caller passed nothing, which meant every release reported
+# itself as "1.0.0-beta+4e4e261" in the About box and in the header of every
+# generated .sql file. The commit is already recoverable from the release page,
+# so the number an operator reads is the release number and nothing else.
+#
+# Pass -BuildStamp explicitly to mark a one-off build handed to someone for
+# testing.
 if ($BuildStamp) {
-    Write-Host "Build stamp: $BuildStamp"
+    Write-Host "Build stamp: $BuildStamp (this build will report $BuildStamp after the version)"
 } else {
-    Write-Host "Build stamp: none (no commit to name)"
+    Write-Host "Build stamp: none, the application will report the release number alone"
 }
 
 # --- 1. the offline runtime -------------------------------------------------
@@ -79,6 +70,28 @@ New-Item -ItemType Directory -Force -Path $installer | Out-Null
 Copy-Item (Join-Path $sources 'project.nsi')          $installer -Force
 Copy-Item (Join-Path $sources 'webview2-offline.nsh') $installer -Force
 Write-Host "Installed our project.nsi and webview2-offline.nsh."
+
+# --- 2b. the application icon ------------------------------------------------
+
+# build/ is git-ignored, so a fresh clone has no build/appicon.png. wails then
+# quietly generates its own default icon, and the released application ships
+# with the wails logo in its title bar and taskbar instead of ours. That is
+# what happened to 1.0.0-beta.
+#
+# genicon rebuilds appicon.png from scripts/icon/appicon.png, which is tracked,
+# and deletes build/windows/icon.ico so wails regenerates that too.
+Write-Host "Rebuilding the application icon..."
+$previous = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+& go run ./scripts/genicon
+$code = $LASTEXITCODE
+$ErrorActionPreference = $previous
+if ($code -ne 0) { throw "go run ./scripts/genicon failed with exit code $code" }
+
+$appicon = Join-Path $root 'build\appicon.png'
+if (-not (Test-Path $appicon)) {
+    throw "genicon did not produce $appicon. The build would ship the wails default icon."
+}
 
 # --- 3. build ---------------------------------------------------------------
 
