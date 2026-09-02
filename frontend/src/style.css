@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 font-sans text-sm antialiased;
+    /* The WebView is a desktop window, not a web page. */
+    user-select: none;
+  }
+
+  /* Cell values, SQL previews and error details are the exception: the
+     operator needs to select and copy them. */
+  .selectable {
+    user-select: text;
+  }
+}

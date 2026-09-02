@@ -1,0 +1,17 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "PGSheet",
+  "outputfilename": "PGSheet",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "Ali Zaarour"
+  },
+  "info": {
+    "productName": "PGSheet",
+    "productVersion": "1.0.0-beta",
+    "comments": "Excel to PostgreSQL import tool"
+  }
+}

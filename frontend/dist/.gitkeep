@@ -1,0 +1,9 @@
+Keeps frontend/dist in the repository.
+
+main.go embeds this directory with //go:embed, which is resolved when Go
+compiles. wails generates bindings (a Go build) before it builds the
+frontend, so on a fresh clone the directory has to exist already or the
+build fails before it can create it.
+
+vite empties this directory on each build, so npm run build writes this
+file back afterwards. See frontend/package.json.

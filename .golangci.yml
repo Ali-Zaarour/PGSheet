@@ -1,0 +1,43 @@
+# golangci-lint configuration for PGSheet.
+#   go run github.com/golangci/golangci-lint/cmd/golangci-lint@latest run
+
+run:
+  timeout: 3m
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - bodyclose
+    - errorlint      # error wrapping is how row/column context reaches an Issue
+    - gosec          # this project generates SQL; injection findings matter
+    - misspell
+    - nilerr
+    - revive
+    - rowserrcheck
+    - sqlclosecheck
+    - unconvert
+
+linters-settings:
+  gosec:
+    excludes:
+      # G404 (weak RNG) is fine: the only randomness is Phase A row sampling.
+      - G404
+  govet:
+    enable:
+      - shadow
+
+issues:
+  exclude-rules:
+    # Test fixtures deliberately contain hostile strings and hand-built SQL.
+    - path: _test\.go
+      linters:
+        - gosec
+        - errcheck
+
+  # Never auto-exclude findings in the escaper: that file is the one place a
+  # bug becomes SQL injection in a file someone runs against production.
+  exclude-dirs-use-default: true
