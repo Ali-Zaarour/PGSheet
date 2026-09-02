@@ -1,6 +1,19 @@
 # PGSheet
 
+[![Latest release](https://img.shields.io/github/v/release/Ali-Zaarour/PGSheet?include_prereleases&label=download&color=2563eb)](https://github.com/Ali-Zaarour/PGSheet/releases)
+
 Turn an Excel sheet into a PostgreSQL insert script you can read before you run it.
+
+## Download
+
+**[Download the latest version for Windows](https://github.com/Ali-Zaarour/PGSheet/releases)**
+
+One file, about 250MB. It carries everything it needs, including the Microsoft
+WebView2 runtime, so it installs on a machine with no internet. Windows asks
+for administrator rights once, to install that runtime.
+
+The smaller `.zip` on the same page is the bare application, for a machine that
+already has WebView2.
 
 ## The problem
 
