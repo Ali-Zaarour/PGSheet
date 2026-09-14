@@ -175,6 +175,8 @@ export interface SheetSelection {
   warnings: string[] | null
   /** The mapping re-checked against this sheet, when one was already loaded. */
   status: MappingStatus | null
+  /** That mapping resolved against this sheet: positions and header text as this sheet has them. */
+  mappings: ColumnMapping[] | null
 }
 
 // ---------- mapping ----------

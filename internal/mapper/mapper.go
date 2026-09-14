@@ -2,6 +2,7 @@ package mapper
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 
 	"pgsheet/internal/domain"
@@ -208,6 +209,51 @@ func Check(
 		}
 	}
 	return st
+}
+
+// ResolveIndexes points every mapping at the sheet column that carries its
+// name in this sheet, and returns the result as a new slice.
+//
+// A mapping records both the header text and its position, and the engine reads
+// cells by position. The position is only true of the sheet the mapping was
+// made against: a saved configuration meeting a template whose columns were
+// reordered would otherwise keep reading the old positions, and two text
+// columns that swapped places would validate cleanly and import into each
+// other. The name is what the operator mapped, so the name decides.
+//
+// An exact match wins over a normalized one, which also takes this sheet's
+// spelling because the mapping screen pairs rows by exact text. A name the
+// sheet lacks keeps its position for Check to report as E101.
+func ResolveIndexes(mappings []domain.ColumnMapping, headers []string) []domain.ColumnMapping {
+	out := slices.Clone(mappings)
+
+	exact := make(map[string]int, len(headers))
+	normalized := make(map[string][]int, len(headers))
+	for i, h := range headers {
+		if _, seen := exact[h]; !seen {
+			exact[h] = i
+		}
+		key := domain.NormalizeHeader(h)
+		normalized[key] = append(normalized[key], i)
+	}
+
+	for i := range out {
+		m := &out[i]
+		if idx, ok := exact[m.ExcelColumn]; ok {
+			m.ExcelIndex = idx
+			continue
+		}
+		candidates := normalized[domain.NormalizeHeader(m.ExcelColumn)]
+		if len(candidates) == 0 {
+			continue
+		}
+		// Several headers can normalize alike; the recorded one breaks the tie.
+		if !slices.Contains(candidates, m.ExcelIndex) {
+			m.ExcelIndex = candidates[0]
+		}
+		m.ExcelColumn = headers[m.ExcelIndex]
+	}
+	return out
 }
 
 // Plan is the resolved, ordered mapping the validator and generator both work

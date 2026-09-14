@@ -274,24 +274,74 @@ func checkForeignKeys(
 	}
 
 	var issues []Issue
+	missing := newMissingReference(fk, mappingOf)
 	for _, occ := range occurrences {
 		if present[occ.Key] {
 			continue
 		}
-		m := mappingOf[fk.Columns[0]]
-		issues = append(issues, Issue{
-			Code:        "E305",
-			Severity:    SevError,
-			Scope:       ScopeCell,
-			ExcelRow:    occ.Row,
-			ExcelColumn: m.ExcelColumn,
-			ExcelRef:    ExcelRef(m.ExcelIndex, occ.Row),
-			DBColumn:    strings.Join(fk.Columns, ", "),
-			Value:       truncate(strings.Join(occ.Parts, ", ")),
-			Message: fmt.Sprintf("%s has no matching row in %s (constraint %s)",
-				strings.Join(occ.Parts, ", "), fk.RefTable, fk.Name),
-			Hint: "the referenced row must exist before this import runs",
-		})
+		issues = append(issues, missing.issue(occ))
 	}
 	return issues, nil
+}
+
+// missingReference renders E305 for one constraint. Everything but the values
+// is the same for every row, and a file with a wrong reference column can
+// produce one issue per row, so that part is built once.
+//
+// Each value is named with its table column and sheet column: a bare "a, b has
+// no matching row" on a key of two ids reads as a value taken from the wrong
+// column.
+type missingReference struct {
+	labels       []string // `col = ` per key part
+	sources      []string // ` (sheet column "X")` per key part
+	suffix       string
+	dbColumns    string
+	sheetColumns string
+	firstIndex   int
+}
+
+func newMissingReference(fk domain.Constraint, mappingOf map[string]mappedColumn) missingReference {
+	r := missingReference{
+		labels:     make([]string, len(fk.Columns)),
+		sources:    make([]string, len(fk.Columns)),
+		suffix:     fmt.Sprintf(" has no matching row in %s (%s), constraint %s", fk.RefTable, strings.Join(fk.RefColumns, ", "), fk.Name),
+		dbColumns:  strings.Join(fk.Columns, ", "),
+		firstIndex: mappingOf[fk.Columns[0]].ExcelIndex,
+	}
+	sheet := make([]string, len(fk.Columns))
+	for i, col := range fk.Columns {
+		sheet[i] = mappingOf[col].ExcelColumn
+		r.labels[i] = col + " = "
+		r.sources[i] = fmt.Sprintf(" (sheet column %q)", sheet[i])
+	}
+	r.sheetColumns = strings.Join(sheet, ", ")
+	return r
+}
+
+// issue fills in one row's values. occ.Parts has one entry per key column:
+// keyParts drops any row that cannot supply all of them.
+func (r missingReference) issue(occ keyOccurrence) Issue {
+	var msg strings.Builder
+	for i, part := range occ.Parts {
+		if i > 0 {
+			msg.WriteString(", ")
+		}
+		msg.WriteString(r.labels[i])
+		msg.WriteString(part)
+		msg.WriteString(r.sources[i])
+	}
+	msg.WriteString(r.suffix)
+
+	return Issue{
+		Code:        "E305",
+		Severity:    SevError,
+		Scope:       ScopeCell,
+		ExcelRow:    occ.Row,
+		ExcelColumn: r.sheetColumns,
+		ExcelRef:    ExcelRef(r.firstIndex, occ.Row),
+		DBColumn:    r.dbColumns,
+		Value:       truncate(strings.Join(occ.Parts, ", ")),
+		Message:     msg.String(),
+		Hint:        "the referenced row must exist before this import runs",
+	}
 }

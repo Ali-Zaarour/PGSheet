@@ -206,6 +206,10 @@ type SheetSelection struct {
 	Preview  [][]PreviewCell  `json:"preview"`
 	Warnings []string         `json:"warnings"`
 	Status   *mapper.Status   `json:"status"`
+	// Mappings is the mapping resolved against this sheet, when one was
+	// already loaded. The screen replaces its copy with it, so it pairs rows
+	// with the columns the engine will actually read.
+	Mappings []domain.ColumnMapping `json:"mappings"`
 }
 
 // PreviewCell is one cell for the confirmation grid. The kind is shown so the
@@ -281,13 +285,15 @@ func (a *App) SelectSheet(name string, headerRow int) (SheetSelection, error) {
 		}
 	}
 
+	a.setMappingsLocked(a.session.mappings)
+
 	if a.session.introspection != nil && len(a.session.mappings) > 0 {
 		checked := mapper.Check(a.session.mappings, a.session.introspection.Schema,
 			info.Headers, a.session.pk.Strategy)
 		status = &checked
 	}
 
-	return SheetSelection{Info: info, Preview: preview, Warnings: warnings, Status: status}, nil
+	return SheetSelection{Info: info, Preview: preview, Warnings: warnings, Status: status, Mappings: a.session.mappings}, nil
 }
 
 // ---------- Step 4: mapping ----------
@@ -315,7 +321,7 @@ func (a *App) AutoMatch() (AutoMatchResult, error) {
 	suggestions := mapper.AutoMatch(a.session.sheet.Headers, schema.Columns)
 	mappings := mapper.ToMappings(suggestions, schema.Columns)
 
-	a.session.mappings = mappings
+	a.setMappingsLocked(mappings)
 	status := mapper.Check(mappings, schema, a.session.sheet.Headers, a.session.pk.Strategy)
 
 	return AutoMatchResult{Suggestions: suggestions, Mappings: mappings, Status: status}, nil
@@ -351,11 +357,21 @@ func (a *App) SetMappings(mappings []domain.ColumnMapping) (mapper.Status, error
 		return mapper.Status{}, errors.New("choose a table first")
 	}
 
-	a.session.mappings = mappings
+	a.setMappingsLocked(mappings)
+	return mapper.Check(a.session.mappings, a.session.introspection.Schema, a.session.sheet.Headers, a.session.pk.Strategy), nil
+}
+
+// setMappingsLocked is the one way mappings enter the session. The caller
+// holds a.mu.
+//
+// Positions are re-derived from the open sheet's headers every time: a mapping
+// can come from a configuration exported against another layout, or from a
+// screen that loaded one before this sheet was open. Any earlier validation
+// described other mappings, so it no longer counts.
+func (a *App) setMappingsLocked(mappings []domain.ColumnMapping) {
+	a.session.mappings = mapper.ResolveIndexes(mappings, a.session.sheet.Headers)
 	a.session.lastReport = nil
 	a.session.dryRunOK = false
-
-	return mapper.Check(mappings, a.session.introspection.Schema, a.session.sheet.Headers, a.session.pk.Strategy), nil
 }
 
 // ---------- Step 5: primary key ----------
@@ -793,9 +809,12 @@ func (a *App) ImportConfigAt(path string) (ConfigLoadResult, error) {
 	if a.session.sheet.Fingerprint != "" {
 		warnings = append(warnings, config.CheckWorkbook(c, a.session.sheet)...)
 	}
+	// Returned with the resolved mappings, so the screen holds what the engine
+	// reads.
+	a.setMappingsLocked(c.Mappings)
+	c.Mappings = a.session.mappings
 	a.session.loadedConfig = &c
 
-	a.session.mappings = c.Mappings
 	a.session.pk = PKChoice{
 		Strategy:   c.PrimaryKey.Strategy,
 		Columns:    c.PrimaryKey.Columns,

@@ -22,7 +22,7 @@ export default function FileSelect() {
   // What the app is doing, in the operator's words. Null when idle.
   const [busy, setBusy] = useState<string | null>(null)
 
-  const { workbook, setWorkbook, setSheet, setPreview, setMappingStatus, progress, unlock, goTo } =
+  const { workbook, setWorkbook, setSheet, setPreview, setMappings, setMappingStatus, progress, unlock, goTo } =
     useSession()
 
   async function open() {
@@ -64,6 +64,8 @@ export default function FileSelect() {
       setPreview(sel.preview)
       // A configuration loaded before the workbook is only really checked now.
       if (sel.status) setMappingStatus(sel.status)
+      // Its columns are found by name in this sheet, which may have moved them.
+      if (sel.mappings?.length) setMappings(sel.mappings)
       unlock('mapping')
     } catch (err) {
       setError(errorText(err))

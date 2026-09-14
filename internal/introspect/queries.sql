@@ -64,11 +64,16 @@ ORDER BY a.attnum;
 SELECT con.conname::text,
        con.contype::text,                          -- p,u,c,f,x
        pg_get_constraintdef(con.oid) AS definition,
+       -- columns and ref_columns are paired element by element: ref_columns[i]
+       -- is what columns[i] points at. Both keep their key order explicitly,
+       -- because a join does not promise to preserve unnest's order, and on a
+       -- two-column key a reordered list compares each value against the other
+       -- referenced column.
        ARRAY(
          SELECT a.attname::text
-         FROM unnest(con.conkey) k
-         JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = k
-         ORDER BY array_position(con.conkey, k)
+         FROM unnest(con.conkey) WITH ORDINALITY AS k(attnum, ord)
+         JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = k.attnum
+         ORDER BY k.ord
        )::text[] AS columns,
        CASE WHEN con.contype = 'f'
             THEN (SELECT (n2.nspname || '.' || c2.relname)::text
@@ -78,8 +83,9 @@ SELECT con.conname::text,
        END AS ref_table,
        CASE WHEN con.contype = 'f'
             THEN ARRAY(SELECT a.attname::text
-                       FROM unnest(con.confkey) k
-                       JOIN pg_attribute a ON a.attrelid = con.confrelid AND a.attnum = k)::text[]
+                       FROM unnest(con.confkey) WITH ORDINALITY AS k(attnum, ord)
+                       JOIN pg_attribute a ON a.attrelid = con.confrelid AND a.attnum = k.attnum
+                       ORDER BY k.ord)::text[]
        END AS ref_columns
 FROM pg_constraint con
 JOIN pg_class c     ON c.oid = con.conrelid
@@ -97,8 +103,9 @@ SELECT i.relname::text,
        ix.indisprimary,
        pg_get_indexdef(ix.indexrelid) AS definition,
        ARRAY(SELECT a.attname::text
-             FROM unnest(ix.indkey) k
-             JOIN pg_attribute a ON a.attrelid = ix.indrelid AND a.attnum = k)::text[] AS columns
+             FROM unnest(ix.indkey::int2[]) WITH ORDINALITY AS k(attnum, ord)
+             JOIN pg_attribute a ON a.attrelid = ix.indrelid AND a.attnum = k.attnum
+             ORDER BY k.ord)::text[] AS columns
 FROM pg_index ix
 JOIN pg_class i     ON i.oid = ix.indexrelid
 JOIN pg_class c     ON c.oid = ix.indrelid

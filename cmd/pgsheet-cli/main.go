@@ -280,7 +280,10 @@ func prepare(ctx context.Context, f commonFlags) (*session, error) {
 		SkipBlankRows:           cfg.Output.SkipBlankRows,
 	}
 
-	s.plan = mapper.BuildPlan(cfg.Mappings, s.res.Schema, cfg.PrimaryKey.Strategy)
+	// The fingerprint check is skipped for a configuration that has none, so
+	// the saved positions are not trusted either way.
+	s.cfg.Mappings = mapper.ResolveIndexes(cfg.Mappings, s.sheet.Headers)
+	s.plan = mapper.BuildPlan(s.cfg.Mappings, s.res.Schema, cfg.PrimaryKey.Strategy)
 	return s, nil
 }
 
