@@ -68,6 +68,6 @@ it works on a machine with no internet.
 
 ---
 
-Version 1.0.1.
+Version 1.0.2.
 
 Ali Zaarour · zaarour.a@outlook.com · +96103979874
