@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -38,6 +39,18 @@ func writeWorkbook(t *testing.T, path string, headers []string, rows [][]string)
 	}
 }
 
+// sessionOnPeople is a session on the people table that closes when the test
+// ends. Windows will not delete a directory holding an open workbook, so the
+// workbook has to close before t.TempDir's cleanup runs; cleanups run in
+// reverse, and every caller makes its directory first.
+func sessionOnPeople(t *testing.T) *App {
+	t.Helper()
+	a := New("test")
+	a.session.introspection = peopleTable()
+	t.Cleanup(func() { a.Shutdown(context.Background()) })
+	return a
+}
+
 // peopleTable is three text columns: nothing about their types can catch a
 // value landing in the wrong one.
 func peopleTable() *introspect.Result {
@@ -61,8 +74,7 @@ func saveConfigFrom(t *testing.T, dir string) string {
 		[]string{"First Name", "Last Name", "Email"},
 		[][]string{{"Grace", "Hopper", "grace@navy.example"}})
 
-	a := New("test")
-	a.session.introspection = peopleTable()
+	a := sessionOnPeople(t)
 	if _, err := a.OpenWorkbookAt(original); err != nil {
 		t.Fatalf("open original: %v", err)
 	}
@@ -180,9 +192,7 @@ func reorderFixture(t *testing.T) (a *App, dir, cfg, file string) {
 	cfg = saveConfigFrom(t, dir)
 	file = reorderedWorkbook(t, dir)
 
-	a = New("test")
-	a.session.introspection = peopleTable()
-	return a, dir, cfg, file
+	return sessionOnPeople(t), dir, cfg, file
 }
 
 // The usual order: the configuration is loaded on the first screen, before
