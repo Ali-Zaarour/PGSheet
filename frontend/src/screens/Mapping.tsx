@@ -181,7 +181,9 @@ export default function Mapping() {
       )}
 
       <Card className="p-0">
-        <table className="w-full border-separate border-spacing-0 text-left text-sm">
+        {/* Fixed layout so the widths below hold: under auto layout one long
+            sample value widens its column and squeezes the rest. */}
+        <table className="w-full table-fixed border-separate border-spacing-0 text-left text-sm">
           {/* The header stays in view: a sheet with eighty columns is eighty
               rows here, and by row forty the column meanings are gone. */}
           <thead className="text-xs uppercase tracking-wide text-slate-500">
@@ -209,12 +211,14 @@ export default function Mapping() {
                 <Fragment key={header}>
                   <tr className="border-b border-slate-100">
                     <td className="px-3 py-2 align-top">
-                      <div className="font-mono text-xs text-slate-900">{header}</div>
+                      <div className="font-mono text-xs text-slate-900 [overflow-wrap:anywhere]">{header}</div>
                       {/* One sample value: what catches the failure a name
-                          check cannot, a column called "Phone" full of dates. */}
+                          check cannot, a column called "Phone" full of dates.
+                          Wrapped, and clamped so a paragraph of text does not
+                          make the row a screen tall; the title holds the rest. */}
                       {sample && (
                         <div
-                          className="mt-0.5 truncate font-mono text-[11px] text-slate-400"
+                          className="mt-0.5 line-clamp-3 font-mono text-[11px] text-slate-400 [overflow-wrap:anywhere]"
                           title={sample}
                         >
                           {sample}
@@ -239,7 +243,7 @@ export default function Mapping() {
                         ))}
                       </Select>
                     </td>
-                    <td className="px-3 py-2 font-mono text-xs text-slate-600">
+                    <td className="px-3 py-2 font-mono text-xs text-slate-600 [overflow-wrap:anywhere]">
                       {column?.formattedType ?? ''}
                       {column && isRequired(column) && (
                         <span className="ml-1">

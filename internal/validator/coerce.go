@@ -223,6 +223,13 @@ func coerceNumeric(cell domain.CellValue, col domain.Column, opts Options) (Coer
 
 	if col.NumericScale != nil {
 		scale := int32(*col.NumericScale)
+		// Trailing zeros are scale, not information: 1.500 and 1.5 are the
+		// same number, and only the significant places can overflow a column.
+		// Without this a cell written as 3.1400000000000 is rejected as
+		// "13 decimal places" for a numeric(15,10) column that fits it.
+		for -d.Exponent() > 0 && d.Truncate(-d.Exponent()-1).Equal(d) {
+			d = d.Truncate(-d.Exponent() - 1)
+		}
 		if -d.Exponent() > scale {
 			if !opts.AllowNumericRounding {
 				return Coerced{}, cellErr("E204", "%s has more than %d decimal places, which %s cannot store",

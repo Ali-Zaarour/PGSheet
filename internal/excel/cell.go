@@ -156,6 +156,19 @@ func parseCell(raw string, isDateColumn bool, date1904 bool) domain.CellValue {
 				}
 			}
 		}
+		// Trim the binary expansion Excel wrote on save. When trimming changes
+		// the text, that text *was* the expansion, so the normalized form is
+		// replaced with it: the confirmation grid and any text-mapped column
+		// must show the typed value, not the artefact. Cells that are left
+		// alone keep their text exactly, so "00123" keeps its leading zeros.
+		// RawText is always the file's own bytes, whichever branch is taken.
+		// Compare the scale too, not just the value: String reports 2222.76511
+		// for a cell written as 2222.7651100000000000, but the decimal keeps
+		// exponent -16, and the scale check downstream counts the exponent.
+		if t := excelPrecision(d); t.Exponent() != d.Exponent() || !t.Equal(d) {
+			d = t
+			normalized = t.String()
+		}
 		return domain.CellValue{Kind: domain.CellNumber, Num: d, Str: normalized, RawText: raw}
 	}
 
@@ -176,6 +189,65 @@ func parseNumber(s string) (decimal.Decimal, error) {
 }
 
 var errNotNumeric = errors.New("not a number")
+
+// excelSignificantDigits is the precision Excel actually guarantees. It stores
+// numbers as IEEE-754 doubles and its UI renders at most 15 significant
+// digits, but it writes the full binary expansion into the XML. A sheet
+// showing 2222.76511 saves as 2222.76510999999982232, and RawCellValue hands
+// that to us verbatim — correct, and not what the operator typed. Digits past
+// the 15th are an artefact of binary representation, never source data.
+const excelSignificantDigits = 15
+
+// excelPrecision recovers the value the operator actually entered.
+//
+// It is not a rounding policy. Excel cannot hold more than 15 significant
+// digits of intent, so any digit past the 15th was manufactured by the binary
+// expansion when the file was saved and was never data. Discarding those
+// digits returns the typed value exactly: 2222.76510999999982232 is the double
+// nearest 2222.76511, and 2222.76511 is what comes back.
+//
+// Two kinds of cell are left strictly alone:
+//
+//   - anything with no fractional part, so a long account number keeps every
+//     digit even when it exceeds what Excel could represent;
+//   - anything already at or under 15 significant digits, which is the typed
+//     value with nothing to recover.
+func excelPrecision(d decimal.Decimal) decimal.Decimal {
+	if d.Exponent() >= 0 {
+		return d // an integer: not a measurement, never trimmed
+	}
+	if d.NumDigits() <= excelSignificantDigits {
+		return d // already exactly what was typed
+	}
+
+	// Digits to keep after the point, so that 15 significant digits remain in
+	// total. Clamped at zero: a value whose integer part alone is longer than
+	// 15 digits keeps that part whole rather than having it rounded away.
+	integerDigits := d.NumDigits() + int(d.Exponent())
+	places := excelSignificantDigits - integerDigits
+	if places < 0 {
+		places = 0
+	}
+
+	return stripTrailingZeros(d.Round(int32(places)))
+}
+
+// stripTrailingZeros removes the padding Round leaves behind. It matters:
+// Round(11) on 2222.76510999999982232 yields 2222.76511000000, whose exponent
+// is still -11, so a numeric(15,10) column would keep rejecting it.
+func stripTrailingZeros(d decimal.Decimal) decimal.Decimal {
+	s := d.String()
+	if !strings.Contains(s, ".") {
+		return d
+	}
+	s = strings.TrimRight(s, "0")
+	s = strings.TrimSuffix(s, ".")
+	out, err := decimal.NewFromString(s)
+	if err != nil {
+		return d
+	}
+	return out
+}
 
 // looksNumeric reports whether s is made only of characters a number can be
 // made of. It accepts far more than the parser does ("1.2.3", "--1", "e"), and
